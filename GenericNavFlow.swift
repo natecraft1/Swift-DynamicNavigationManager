@@ -1,68 +1,35 @@
-// During FB interview we got into the discussion of how to provide a navigation flow manager which asks
+// During an interview I got into a discussion of how to provide a navigation flow manager which asks
 // for the next step which is initialized with different params depending on which VC will be presented next.
+// This is my idea...
 
 import UIKit
 
-enum Page {
+enum Page: Equatable {
     case search(SearchInitializer)
     case seatSelection(SeatSelectionInitializer)
     case payment(PaymentInitializer)
     case confirmation(ConfirmationInitializer)
     
-    typealias SearchInitializer = ([String]) -> UIViewController
-    typealias SeatSelectionInitializer = ([Int]) -> UIViewController
-    typealias PaymentInitializer = (String) -> UIViewController
-    typealias ConfirmationInitializer = (Bool) -> UIViewController
-}
-
-enum Step {
-    case search
-    case seatSelection
-    case payment
-    case confirmation
-
-    var page: Page {
+    typealias SearchInitializer = ([String]) -> SearchController
+    typealias SeatSelectionInitializer = ([Int]) -> SeatSelectionController
+    typealias PaymentInitializer = (String) -> PaymentController
+    typealias ConfirmationInitializer = (Bool) -> ConfirmationController
+    
+    var identifier: String {
         switch self {
-        case .search:
-            return Page.search(FlowManager.createSearchController)
         case .confirmation:
-            return Page.confirmation(FlowManager.createConfirmationController)
+            return "confirmation"
         case .seatSelection:
-            return Page.seatSelection(FlowManager.createSeatSelectionController)
+            return "seatSelection"
         case .payment:
-            return Page.payment(FlowManager.createPaymentController)
+            return "payment"
+        case .search:
+            return "search"
         }
     }
-}
-
-class FlowManager {
-    var steps: [Step] = [.search, .seatSelection, .payment, .confirmation]
-    var current: Int = 0
     
-    func getNextStep(skippingTo: Step? = nil) -> Step {
-        var next = current + 1
-        
-        if let skipTo = skippingTo, let nextIdx = steps.firstIndex(of: skipTo) {
-            next = Int(nextIdx)
-        }
-        current = next
-        return steps[current]
-    }
-
-    static func createSearchController(data: [String]) -> SearchController {
-        return SearchController(strings: data)
-    }
-    
-    static func createConfirmationController(data: Bool) -> ConfirmationController {
-        return ConfirmationController(b: data)
-    }
-    
-    static func createPaymentController(s: String) -> PaymentController {
-        return PaymentController(string: s)
-    }
-    
-    static func createSeatSelectionController(data: [Int]) -> SeatSelectionController {
-        return SeatSelectionController(ints: data)
+    static func ==(lhs: Page, rhs: Page) -> Bool {
+        return lhs.identifier == rhs.identifier
     }
 }
 
@@ -72,24 +39,57 @@ class MainController: UIViewController {
     convenience init(flow: FlowManager) {
         self.init()
         self.flow = flow
+        navigate(to: flow.start())
     }
     
-    func didTapNext(skippingTo: Step? = nil) {
-        let step = flow.getNextStep(skippingTo: skippingTo)
+    func didTapNext(skippingTo: Page? = nil) {
+        let page = flow.getNextStep(skippingTo: skippingTo)
+        navigate(to: page)
+    }
+    
+    func navigate(to page: Page) {
         var controller: UIViewController
-        switch step.page {
-        case .confirmation(let initializer):
-            controller = initializer(true)
-        case .payment(let initializer):
-            controller = initializer("hello world")
-        case .search(let initializer):
-            controller = initializer(["one", "two"])
-        case .seatSelection(let initializer):
-            controller = initializer([1,2,3])
+        
+        switch page {
+        case .confirmation(let confirmationVCInit):
+            controller = confirmationVCInit(true)
+        case .payment(let paymentVCInit):
+            controller = paymentVCInit("hello world")
+        case .search(let searchVCInit):
+            controller = searchVCInit(["one", "two"])
+        case .seatSelection(let seatSelectionInit):
+            controller = seatSelectionInit([1,2,3])
         }
-        present(controller, animated: true, completion: nil)
+        
+        self.navigationController?.pushViewController(controller, animated: true)
+    }
+}
+
+class FlowManager {
+    var currentStep: Int = 0
+    var flow: [Page] = [.search(SearchController.create),
+                         .seatSelection(SeatSelectionController.create),
+                         .payment(PaymentController.create),
+                         .confirmation(ConfirmationController.create)]
+    
+    func start() -> Page {
+        guard let firstPage = flow.first else { preconditionFailure("at least one page is required") }
+        return firstPage
     }
     
+    func getNextStep(skippingTo: Page? = nil) -> Page {
+        var next = currentStep + 1
+        
+        if let skipTo = skippingTo, let nextIdx = flow.firstIndex(of: skipTo) {
+            next = Int(nextIdx)
+        }
+        
+        guard next < flow.count else { return flow[currentStep] }
+        
+        currentStep = next
+        return flow[currentStep]
+    }
+
 }
 
 class SearchController: UIViewController {
@@ -99,6 +99,10 @@ class SearchController: UIViewController {
     }
     required init?(coder aDecoder: NSCoder) {
         fatalError()
+    }
+    
+    static func create(data: [String]) -> SearchController {
+        return SearchController(strings: data)
     }
 }
 
@@ -110,6 +114,10 @@ class SeatSelectionController: UIViewController {
     required init?(coder aDecoder: NSCoder) {
         fatalError()
     }
+    
+    static func create(data: [Int]) -> SeatSelectionController {
+        return SeatSelectionController(ints: data)
+    }
 }
 
 class PaymentController: UIViewController {
@@ -119,6 +127,10 @@ class PaymentController: UIViewController {
     }
     required init?(coder aDecoder: NSCoder) {
         fatalError()
+    }
+    
+    static func create(s: String) -> PaymentController {
+        return PaymentController(string: s)
     }
 }
 
@@ -130,10 +142,15 @@ class ConfirmationController: UIViewController {
     required init?(coder aDecoder: NSCoder) {
         fatalError()
     }
+    
+    static func create(data: Bool) -> ConfirmationController {
+        return ConfirmationController(b: data)
+    }
 }
 
 let main = MainController(flow: FlowManager())
-main.didTapNext(skippingTo: .payment)
+// toggle between the next two lines
+main.didTapNext(skippingTo: .payment(PaymentController.create))
 //main.didTapNext()
 main.didTapNext()
 
