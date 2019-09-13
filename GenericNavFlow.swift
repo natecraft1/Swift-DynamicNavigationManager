@@ -33,20 +33,11 @@ enum Page: Equatable {
     }
 }
 
-class MainController: UIViewController {
-    var flow: FlowManager!
-    
-    convenience init(flow: FlowManager) {
-        self.init()
-        self.flow = flow
-        navigate(to: flow.start())
-    }
-    
-    func didTapNext(skippingTo: Page? = nil) {
-        let page = flow.getNextStep(skippingTo: skippingTo)
-        navigate(to: page)
-    }
-    
+protocol FlightBookingFlow: UIViewController {
+    func navigate(to: Page)
+}
+
+extension FlightBookingFlow {
     func navigate(to page: Page) {
         var controller: UIViewController
         
@@ -63,6 +54,22 @@ class MainController: UIViewController {
         
         self.navigationController?.pushViewController(controller, animated: true)
     }
+}
+
+class MainController: UIViewController, FlightBookingFlow {
+    var flow: FlowManager!
+    
+    convenience init(flow: FlowManager) {
+        self.init()
+        self.flow = flow
+        navigate(to: flow.start())
+    }
+    
+    func didTapNext(skippingTo: Page? = nil) {
+        let page = flow.getNextStep(skippingTo: skippingTo)
+        navigate(to: page)
+    }
+
 }
 
 class FlowManager {
@@ -92,7 +99,7 @@ class FlowManager {
 
 }
 
-class SearchController: UIViewController {
+class SearchController: UIViewController, FlightBookingFlow {
     init(strings: [String]) {
         super.init(nibName: nil, bundle: nil)
         print(strings, self)
@@ -120,7 +127,7 @@ class SeatSelectionController: UIViewController {
     }
 }
 
-class PaymentController: UIViewController {
+class PaymentController: UIViewController, FlightBookingFlow {
     init(string: String) {
         super.init(nibName: nil, bundle: nil)
         print(string, self)
@@ -134,7 +141,7 @@ class PaymentController: UIViewController {
     }
 }
 
-class ConfirmationController: UIViewController {
+class ConfirmationController: UIViewController, FlightBookingFlow {
     init(b: Bool) {
         super.init(nibName: nil, bundle: nil)
         print(b, self)
